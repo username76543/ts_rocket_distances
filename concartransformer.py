@@ -33,21 +33,19 @@ class ConCarTransformer(BaseCollectionTransformer):
     selected as good initial cluster centers, or via clustering (under development).
     Reference points are compared with a distance measure and the resulting distances
     are the pooling features for ROCKET.  Currently uses the Move-Split-Merge
-    (MSM) metric[2]. 
+    (MSM) metric[2]. Only independent distance calculations for multivariate series are
+    available, since ROCKET may zero some channels.
     
     #Preliminary Results
     
     From small scale testing, random convolved point distances are good pooling features  
     for ROCKET, but require substantially more computation. Accuracy is better than NN 
     or EE, but worse than MiniRocket, with less runtime that EE, but more than ROCKET. 
-    Results slightly improve MR-HYDRA, even with an order of magnitude fewer kernels.
     
-    #Currently in Alpha, plan to improve and make compatible with Aeon toolkit
+    #Currently in Alpha, plan to improve and remain compatible with Aeon toolkit.
     
     TODO
     
-    Make poi_per_kernel functional
-    Multivariate Capabilities
     Tuneable POI Inital Search Fraction
     POI chosen via clustering (will increase runtime)
     MiniRocket Kernels
@@ -67,9 +65,9 @@ class ConCarTransformer(BaseCollectionTransformer):
        processors.
     random_state : None or int, optional, default = None
         Seed for random number generation.
-    poi_per_kernel : default=None
-        Does nothing, will decide number of poi chosen for each kernel
+    poi_per_kernel : string, default=log_log_2
         Default chooses ceil(log2(log2(|X|))), where X is the test dataset.
+        options include: log_2, log_log_2
     window_frac: float, default = .2
         Bounding matrix window size for elastic distance measures
         
@@ -111,7 +109,7 @@ class ConCarTransformer(BaseCollectionTransformer):
 
     _tags = {
         "output_data_type": "Tabular",
-        "capability:multivariate": False,
+        "capability:multivariate": True,
         "capability:multithreading": True,
         "algorithm_type": "convolution",
         "X_inner_type": "numpy3D",
@@ -123,7 +121,7 @@ class ConCarTransformer(BaseCollectionTransformer):
         normalise=True,
         n_jobs=1,
         random_state=None,
-        poi_per_kernel = 1,
+        poi_per_kernel = 'log_log_2',
         window_frac = .2
     ):
         self.n_kernels = n_kernels
@@ -187,7 +185,7 @@ class ConCarTransformer(BaseCollectionTransformer):
         prev_threads = get_num_threads()
         set_num_threads(self._n_jobs)
         #print("before apply kernels")
-        X_ = _apply_kernels_poi(X, self.kernels, self.kernel_points, self.poi_per_kernel, self.dist_name, self.window_frac)
+        X_ = _apply_kernels_poi(X, self.kernels, self.kernel_points, self.dist_name, self.window_frac)
         #print("after apply kernels")
         set_num_threads(prev_threads)
         return X_
@@ -272,7 +270,7 @@ def _generate_kernels(n_timepoints, n_kernels, n_channels, seed):
     fastmath=True,
     cache=True,
 )
-def _apply_kernels_poi(X, kernels, pois, poi_per_kernel, distance_func, window_frac):
+def _apply_kernels_poi(X, kernels, pois, distance_func, window_frac):
     (
         weights,
         lengths,
@@ -317,18 +315,22 @@ def _apply_kernels_poi(X, kernels, pois, poi_per_kernel, distance_func, window_f
             else:
                 #Implement Multivariate here
                 Nothing=None
-                '''_weights = weights[a1:b1].reshape((n_channel_indices[j], lengths[j]))
-
-                _X[i][a3:b3] = _apply_kernel_multivariate(
-                    X[i],
-                    _weights,
-                    lengths[j],
-                    biases[j],
-                    dilations[j],
-                    paddings[j],
-                    n_channel_indices[j],
-                    channel_indices[a2:b2],
-                )'''
+                reshaped_weights = weights[a1:b1].reshape(n_channel_indices[j], lengths[j])
+                new_features = _apply_poi_kernel_multivariate(
+                X[i],
+                reshaped_weights,
+                lengths[j],
+                biases[j],
+                dilations[j],
+                paddings[j],
+                n_channel_indices[j],
+                channel_indices[a2:b2],
+                pois[j],
+                distance_func,
+                window_frac
+                )
+                for k in range(0, poi_per_kernel):
+                    return_features[i][j*poi_per_kernel+k] = new_features[k]
 
             a1 = b1
             a2 = b2
@@ -342,7 +344,7 @@ def _apply_kernels_poi(X, kernels, pois, poi_per_kernel, distance_func, window_f
     fastmath=True,
     cache=True,
 )
-def _get_points_of_interest(X, kernels, poi_per_kernel, pw_dist_name, window_frac=.2):
+def _get_points_of_interest(X, kernels, poi_per_kernel="log_log_2", pw_dist_name='msm', window_frac=.2):
     (
         weights,
         lengths,
@@ -352,25 +354,32 @@ def _get_points_of_interest(X, kernels, poi_per_kernel, pw_dist_name, window_fra
         n_channel_indices,
         channel_indices,
     ) = kernels
-    n_cases = len(X)#np.ceil(np.log2(np.log2(len(X))))
-    n_cases = int(np.ceil(np.log2(np.log2(n_cases))))
+    n_cases = len(X)
+    if poi_per_kernel == "log_log_2":
+        n_cases = int(np.ceil(np.log2(np.log2(n_cases))))
+    elif poi_per_kernel == "log_2":
+        n_cases = int(np.ceil(np.log2(n_cases)))
+    else:
+        n_cases = 1
     #n_cases = int(np.ceil(np.log2(n_cases)))
     search_buffer = n_cases
     #print("n_cases", n_cases)
     n_channels, n_timepoints = X[0].shape
     n_kernels = len(lengths)
-
-    #poi = np.zeros((n_kernels, poi_per_kernel, n_channels, n_timepoints), dtype=np.float32)  
-    #candidate_points = np.zeros((n_kernels, n_cases, n_channels, n_timepoints), dtype=np.float32)
-    all_starts = np.zeros(n_kernels)
+    #print('n_kernels', n_kernels)
     weight_starts = np.zeros(n_kernels)
     weight_ends = np.zeros(n_kernels)
+    channel_starts = np.zeros(n_kernels)
+    channel_ends = np.zeros(n_kernels)
     a1_i = 0
-    b1_i = 0
+    a2_i = 0
     for i in range(n_kernels):
         weight_starts[i] = a1_i
         a1_i = a1_i + n_channel_indices[i] * lengths[i]
         weight_ends[i] = a1_i
+        channel_starts[i] = a2_i
+        a2_i = a2_i + n_channel_indices[i]
+        channel_ends[i] = a2_i
         
     return_points = np.zeros((n_kernels, n_cases, n_channels, n_timepoints), dtype=np.float32)
     for i in prange(n_kernels):
@@ -379,16 +388,15 @@ def _get_points_of_interest(X, kernels, poi_per_kernel, pw_dist_name, window_fra
         a3 = 0  # for features
 
         candidate_points = np.zeros((n_cases, n_channels, n_timepoints), dtype=np.float32)
-        eval_candidate_buffer = np.zeros((n_channels, n_timepoints), dtype=np.float32)
+        #eval_candidate_buffer = np.zeros((n_channels, n_timepoints), dtype=np.float32)
         current_distances = np.zeros((n_cases, n_cases), dtype=np.float32)
         candidate_indices = np.random.choice(np.arange(0, len(X)), size=n_cases+search_buffer, replace=False)
-        #print('candidate_indices', candidate_indices)
         initial_candidates = 0
-        worst_index = 0
         for j in range(len(candidate_indices)):
             #print("candidate example", X[candidate_indices[j]])
-            
+            print("candidate_points", candidate_points.shape)
             if n_channel_indices[i] == 1:
+                eval_candidate_buffer = np.zeros((n_channels, n_timepoints), dtype=np.float32)
                 convolved_candidate = np.zeros(len(X[candidate_indices[j]][0]), dtype=np.float32)
                 convolved_candidate = univariate_apply_kernel_return_convolved(
                 X[candidate_indices[j]][0],
@@ -419,12 +427,48 @@ def _get_points_of_interest(X, kernels, poi_per_kernel, pw_dist_name, window_fra
                             nothing = None #raise ValueError("Invalid dist func provided.")
                 elif initial_candidates == n_cases:
                     eval_candidate_buffer[0] = convolved_candidate
-                    candidate_points, current_distances = accept_or_reject_candidate(candidate_points, eval_candidate_buffer, current_distances, worst_index, pw_dist_name)
+                    candidate_points, current_distances = accept_or_reject_candidate(candidate_points, eval_candidate_buffer, current_distances, pw_dist_name, window_frac)
             else:
-                nothing=None
+                #print("multivariate_series", X[candidate_indices[j]])
+                #print(X[candidate_indices[j]].shape)
+                reshaped_weights = weights[weight_starts[i]:weight_ends[i]].reshape(n_channel_indices[i], lengths[i])
+                convolved_candidate = np.zeros((X[candidate_indices[j]].shape[0], X[candidate_indices[j]].shape[1]), dtype=np.float32)
+                convolved_candidate = multivariate_apply_kernel_return_convolved(
+                X[candidate_indices[j]],
+                reshaped_weights,
+                lengths[i],
+                biases[i],
+                dilations[i],
+                paddings[i],
+                n_channel_indices[i],
+                channel_indices[channel_starts[i]:channel_ends[i]],
+                convolved_candidate
+                )
+                #print(convolved_candidate)
+                if initial_candidates < n_cases:
+                    candidate_points[initial_candidates] = convolved_candidate
+                    initial_candidates += 1
+                    if initial_candidates == n_cases:
+                        if pw_dist_name == 'msm':
+                            #msm_distance is numba compatible, msm_pairwise is not.
+                            #because of this, I have to individually compute the initial pairwise matrix
+                            for row_index in range(0, len(candidate_points)):
+                                for column_index in range(row_index+1, len(candidate_points)):
+                                    if row_index == column_index:
+                                        continue
+                                    else:
+                                        new_dist = msm_distance(candidate_points[row_index], candidate_points[column_index], window=window_frac)
+                                        current_distances[row_index][column_index] = new_dist
+                                        current_distances[column_index][row_index] = new_dist
+                                #print(row_index, column_index, current_distances)
+                        else:
+                            nothing = None #raise ValueError("Invalid dist func provided.")
+                elif initial_candidates == n_cases:
+                    #eval_candidate_buffer[0] = convolved_candidate
+                    candidate_points, current_distances = accept_or_reject_candidate(candidate_points, convolved_candidate, current_distances, pw_dist_name, window_frac)
         return_points[i] = candidate_points
     
-
+    #print(return_points)
     return return_points
     
     
@@ -432,7 +476,7 @@ def _get_points_of_interest(X, kernels, poi_per_kernel, pw_dist_name, window_fra
 #Tries to maximize how "triangular" they are by picking points that are uniformly
 #distant from current points    
 @njit(fastmath=True, cache=True)
-def accept_or_reject_candidate(candidate_points, convolved_candidate, current_distances, worst_index, my_pw_dist_func, window_frac=.2):
+def accept_or_reject_candidate(candidate_points, convolved_candidate, current_distances, my_pw_dist_func, window_frac=.2):
     current_distances_scores = score_pois_from_dist_matrix(current_distances)
     #print('scores', current_distances_scores)
     worst_poi = np.argmin(current_distances_scores)
@@ -503,6 +547,24 @@ def univariate_apply_kernel_return_convolved(X, weights, length, bias, dilation,
             if i+offsets[j] > -1 and i + offsets[j] < n_timepoints:
                 return_series[i] += np.float32(X[int(i+offsets[j])]*weights[j])
     return return_series
+    
+@njit(fastmath=True, cache=True)
+def multivariate_apply_kernel_return_convolved(X, weights, length, bias, dilation, padding, num_channel_indices, channel_indices, return_series):
+    """Apply a single kernel to a multivariate series."""
+    #print(X.shape, weights.shape, channel_indices.shape)
+    #print(channel_indices)
+    #print(weights.shape)#, length, bias, dilation, padding, return_series)
+    n_channels, n_timepoints = X.shape
+    offsets = np.zeros(n_timepoints)
+    midpoint = int(length/2)
+    for i in range(length):
+        offsets[i] = np.int32(i-midpoint+(i-midpoint)*dilation)
+    for i in range(n_timepoints):
+        for j in range(length):
+            for k in range(num_channel_indices):
+                if i+offsets[j] > -1 and i + offsets[j] < n_timepoints:
+                    return_series[channel_indices[k]][i] += np.float32(X[channel_indices[k]][int(i+offsets[j])]*weights[k][j])
+    return return_series
 
 @njit(fastmath=True, cache=True)
 def _apply_poi_kernel_univariate(X, weights, length, bias, dilation, padding, pois, my_pw_dist_func, window_frac=.2):
@@ -517,6 +579,24 @@ def _apply_poi_kernel_univariate(X, weights, length, bias, dilation, padding, po
         if my_pw_dist_func == 'msm':
             #print("measure shapes", dist_buffer.shape, pois[i].shape)
             new_dist = msm_distance(dist_buffer, pois[i], window=window_frac)
+            #print("new_dist", new_dist)
+            return_array[i] = new_dist
+        else:
+            raise ValueError("Invalid dist func provided.")
+
+    return return_array
+
+@njit(fastmath=True, cache=True)
+def _apply_poi_kernel_multivariate(X, weights, length, bias, dilation, padding, num_channel_indices, channel_indices, pois, my_pw_dist_func, window_frac=.2):
+    """Measure a single set of distances for multivariate time series pois under convolution."""
+    convolved_X = np.zeros((X.shape[0], X.shape[1]), dtype=np.float32)
+    convolved_x = multivariate_apply_kernel_return_convolved(X, weights, length, bias, dilation, padding, num_channel_indices, channel_indices, convolved_X)
+    return_array = np.zeros(pois.shape[0], dtype=np.float32)
+    #print("return_array", return_array)
+    for i in range(0, pois.shape[0]):
+        if my_pw_dist_func == 'msm':
+            #print("measure shapes", dist_buffer.shape, pois[i].shape)
+            new_dist = msm_distance(convolved_x, pois[i], window=window_frac)
             #print("new_dist", new_dist)
             return_array[i] = new_dist
         else:
