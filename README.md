@@ -40,3 +40,9 @@ Does this work? Empirically, it improves on ROCKET substantially with ~1/20th of
 But this approach has one additional useful property. As the size of your training set increases, there is a natural way to improve the quality of your features. Just add more points of interest. Right now, the points of interest scale logarithmically to the size of the dataset, which has been the best approach in my limited testing. But each datapoint slowly increases the quality of all other datapoints.
 
 [Comparison Charts Go Here]
+
+Some Observations:
+
+From the convolution theorem, the ROCKET Convolutional kernels are equivalent to frequency space pointwise multiplication. So randomly selecting frequencies in frequency space to amplify or surpress is equivalent to convolutional mapping. Since ROCKET is so effective, we can consider the time domain distance function post convolution is equivalent to using a similarity measure where certain frequncies are amplified or surpressed. This process should only work in the cases where classes have class boundaries in the frequency domain. But the fact that it seems to work everywhere implies that frequency domain class clustering is common to almost all datasets.
+
+As the number of samples increases, the importance of using a elastic distance function should decrease, since the probability of selecting a well aligned point of reference increases. I need to check where the shift occurs.
