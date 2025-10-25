@@ -37,6 +37,6 @@ Most of the convolutions are not helpful, but if you use an algorithm that perfo
 
 Does this work? Empirically, it improves on ROCKET substantially with ~1/20th of the kernels, but the distance calculations make it much slower. It is almost always better than other distance based approaches. It is worse than MiniRocket, MultiRocket, and HYDRA, but again, 1/20th of Rockets kernel count. Adding more kernels improves performance at the cost of linearly increasing time.
 
-But this approach has one additional useful property. As the size of your training set increases, there is a natural way to improve the quality of your features. Just add more points of interest. Right now, the points of interest scale logarithmically to the size of the dataset, which has been the best approach in my limited testing. But each datapoint improves slowly increases the quality of all other datapoints.
+But this approach has one additional useful property. As the size of your training set increases, there is a natural way to improve the quality of your features. Just add more points of interest. Right now, the points of interest scale logarithmically to the size of the dataset, which has been the best approach in my limited testing. But each datapoint slowly increases the quality of all other datapoints.
 
 [Comparison Charts Go Here]
