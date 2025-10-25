@@ -15,10 +15,15 @@ Top is one color, bottom is the other.
 If you could find a way to consistently map the points in the first space to the second space such that the red points go on top and the blue points on bottom, you could easily create a classifier. As an example, say that x, y are training points of classes red and blue and z is an unknown point. You have a function f that seperates class 1 and 2 in the testing set and a distance function d.
 
 Then you algorithm is
+
 def classify(z):
+
   if d(f(z), f(x)) < d(f(z), f(y)):
+
     return x.class
+
   else:
+    
     return y.class
 
 For most of the points in the poorly mixed example, this will return the correct classification. Accuracy will vary based on how far x and y are from the class boundary, but it is just a form of nearest neighbors. You are doing nearest neighbors after a function that seperates your datapoints better than the baseline dataset.
