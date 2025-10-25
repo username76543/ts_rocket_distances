@@ -16,15 +16,12 @@ If you could find a way to consistently map the points in the first space to the
 
 Then you algorithm is
 
-def classify(z):
+    def classify(z):
+      if d(f(z), f(x)) < d(f(z), f(y)):
+        return x.class
+      else:
+        return y.class
 
-  if d(f(z), f(x)) < d(f(z), f(y)):
-
-    return x.class
-
-  else:
-    
-    return y.class
 
 For most of the points in the poorly mixed example, this will return the correct classification. Accuracy will vary based on how far x and y are from the class boundary, but it is just a form of nearest neighbors. You are doing nearest neighbors after a function that seperates your datapoints better than the baseline dataset.
 
