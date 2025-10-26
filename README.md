@@ -35,7 +35,7 @@ These observations are the motivation behind the Convolutional Cartography Trans
 
 Most of the convolutions are not helpful, but if you use an algorithm that performs feature selection such as Ridge Regression or Random Forests, the few convolutions which did seperate your classes will have higher weight. You can now produce a more useful set of features for classification.
 
-Does this work? Empirically, it improves on ROCKET substantially with ~1/20th of the kernels, but the distance calculations make it much slower. It is almost always better than other distance based approaches. It is worse than MiniRocket, MultiRocket, and HYDRA, but again, 1/20th of Rockets kernel count. Adding more kernels improves performance at the cost of linearly increasing time.
+Does this work? Empirically, it sometimes improves on ROCKET with 1/20th of the kernels, but the distance calculations make it much slower. It is almost always better than other distance based approaches. It is worse than MiniRocket, MultiRocket, HYDRA and QUANT, but again, 1/20th of the kernel count. Adding more kernels should improve performance at the cost of linearly increasing time. I highly doubt I have saturated the kernel space and I still need to switch from the ROCKET kernels to MiniRocket's kernels.
 
 But this approach has one additional useful property. As the size of your training set increases, there is a natural way to improve the quality of your features. Just add more points of interest. Right now, the points of interest scale logarithmically to the size of the dataset, which has been the best approach in my limited testing. But each datapoint slowly increases the quality of all other datapoints.
 
