@@ -39,7 +39,8 @@ Does this work? Empirically, it sometimes improves on ROCKET with 1/20th of the 
 
 But this approach has one additional useful property. As the size of your training set increases, there is a natural way to improve the quality of your features. Just add more points of interest. Right now, the points of interest scale logarithmically to the size of the dataset, which has been the best approach in my limited testing. But each datapoint slowly increases the quality of all other datapoints.
 
-[Comparison Charts Go Here]
+<img width="1300" height="600" alt="diagrams_incomplete_small_test" src="https://github.com/user-attachments/assets/5b4ffab0-2529-43bd-9ac3-72b5d8cc4890" />
+First, incomplete test of small datasets. Distance measure is MSM, 512 ROCKET kernels. RF approach classifier had best performance on two datasets, despite low kernel count. ROCKET ranks look deflated by inclusion of multiple forms of ROCKET.
 
 Some Observations:
 
