@@ -14,7 +14,7 @@ Top is one color, bottom is the other.
 
 If you could find a way to consistently map the points in the first space to the second space such that the red points go on top and the blue points on bottom, you could easily create a classifier. As an example, say that x, y are training points of classes red and blue and z is an unknown point. You have a function f that seperates class 1 and 2 in the testing set and a distance function d.
 
-Then you algorithm is
+Then your algorithm is
 
     def classify(z):
       if d(f(z), f(x)) < d(f(z), f(y)):
