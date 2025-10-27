@@ -50,8 +50,7 @@ Euclidean distances, 10000 convolutional kernels. It is clearly better than nn, 
 
 To further our apples to apples comparison, let's limit all the ROCKET methods to 840 kernels (since MiniRocket requires a multiple of 84) and see how they compare. We will have to exclude HYDRA and QUANT from this test, since they don't have as easy of a way to limit the algorithms.
 
-<img width="1300" height="600" alt="Figure_1" src="https://github.com/user-attachments/assets/52cdc414-f0aa-48d6-b0b6-2897b62dfc2f" />
-
+<img width="1300" height="600" alt="Figure_1" src="https://github.com/user-attachments/assets/b39a12ec-365c-48af-80e6-a8f931688d01" />
 
 So ConCar is a little worse than the default featureset, but still performs the best on several datasets if all algorithms have to use the same number of kernels. This also makes it clear that Ridge Regression definitely outperforms Random Forests for ConCar, which was unknown because of its hybrid distance and convolutional structure.
 
