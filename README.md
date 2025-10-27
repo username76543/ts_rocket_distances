@@ -42,6 +42,12 @@ But this approach has one additional useful property. As the size of your traini
 <img width="1300" height="600" alt="diagrams_incomplete_small_test" src="https://github.com/user-attachments/assets/5b4ffab0-2529-43bd-9ac3-72b5d8cc4890" />
 First, incomplete test of small datasets. Distance measure is MSM, 512 ROCKET kernels. RF approach classifier had best performance on two datasets, despite low kernel count. ROCKET ranks look deflated by inclusion of multiple forms of ROCKET.
 
+Of course, this comparison isn't entirely fair. Let's try scaling up the number of kernels, but switching from MSM distance to euclidean distance. If the elasticity of the measure mattters, more than the number of kernels, we should expect the relative performance of the ConCar transformation to decrease.
+
+<img width="1300" height="600" alt="Figure_1" src="https://github.com/user-attachments/assets/2a23807e-d363-483b-aa4c-083c9d2c1aeb" />
+Euclidean distances, 10000 convolutional kernels. It is clearly better than nn, not much else.
+
+
 Some Observations:
 
 From the convolution theorem, the ROCKET Convolutional kernels are equivalent to frequency space pointwise multiplication. So randomly selecting frequencies in frequency space to amplify or supress is equivalent to convolutional mapping. Since ROCKET is so effective, we can consider the time domain distance function post convolution is equivalent to using a similarity measure where certain frequncies are amplified or supressed. This process should only work in the cases where classes have class boundaries in the frequency domain. But the fact that it seems to work everywhere implies that frequency domain class clustering is common to almost all datasets.
