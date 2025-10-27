@@ -52,7 +52,8 @@ To further our apples to apples comparison, let's limit all the ROCKET methods t
 
 <img width="1300" height="600" alt="Figure_1" src="https://github.com/user-attachments/assets/52cdc414-f0aa-48d6-b0b6-2897b62dfc2f" />
 
-So ConCar is a little worse than the default featureset, but still performs the best on several datasets if all algorithms have to use the same number of kernels. This also makes it clear that Ridge Regression definitely outperforms Random Forests for ConCar, which was uknown because of its hybrid distance and convolutional structure.
+
+So ConCar is a little worse than the default featureset, but still performs the best on several datasets if all algorithms have to use the same number of kernels. This also makes it clear that Ridge Regression definitely outperforms Random Forests for ConCar, which was unknown because of its hybrid distance and convolutional structure.
 
 Some Observations:
 
