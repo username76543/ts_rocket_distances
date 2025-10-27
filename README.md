@@ -71,7 +71,7 @@ This gives the transform
 
 O(n·log_b(n)·m·l·k), 
 
-which is of the same order as the Proximity Forest's complexity of 
+which if b > 2 is better than the order as the Proximity Forest's complexity
 
 O(n·log_2(n)·m·l·r·c) 
 
