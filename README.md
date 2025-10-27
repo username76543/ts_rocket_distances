@@ -67,11 +67,11 @@ Of course, this is modified by a large constant factor determined by how long th
 
 This gives the transform 
 
-O(log_b(n)*m*l*k), 
+O(log_b(n)·m·l·k), 
 
 which compares favorably to the Proximity Forest's complexity of 
 
-O(n*log_2(n)*r*c*m*l) 
+O(n·log_2(n)m·l·r·c) 
 
 for an sqrt(l) windowed elastic distances with c as the number of classes and r candidate splits. The remaining time complexity would be dominated by linear regression or creating a forest on k*log_b(n) features.
 
