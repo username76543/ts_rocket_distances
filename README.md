@@ -61,7 +61,7 @@ Complexity Analysis:
 
 The current transform creates log_b(n) points of interest for each kernel, where b is a constant and n is the number of datapoints. Set the kernel count to be a constant k and the dimensionality of the dataset to be a constant m and the length of each series to be l. Then, the number of distance calculations perform the transform is:
 
-|distance_calculations| ~= k*log_b(|X|)
+|distance_calculations| ~= k·n·log_b(n)
 
 where dist is a distance function with running time proportional to m and l.
 
@@ -69,13 +69,13 @@ Of course, this is modified by a large constant factor determined by how long th
 
 This gives the transform 
 
-O(log_b(n)·m·l·k), 
+O(n·log_b(n)·m·l·k), 
 
-which compares favorably to the Proximity Forest's complexity of 
+which is of the same order as the Proximity Forest's complexity of 
 
-O(n·log_2(n)m·l·r·c) 
+O(n·log_2(n)·m·l·r·c) 
 
-for an sqrt(l) windowed elastic distances with c as the number of classes and r candidate splits. The remaining time complexity would be dominated by linear regression or creating a forest on k*log_b(n) features.
+for an sqrt(l) windowed elastic distances with c as the number of classes and r candidate splits. The remaining time complexity would be dominated by linear regression or creating a forest on k*n·log_b(n) features.
 
 Some Observations:
 
