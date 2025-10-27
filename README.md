@@ -43,7 +43,7 @@ But this approach has one additional useful property. As the size of your traini
 
 First test of small datasets. Distance measure is MSM, 512 ROCKET kernels. All other classifiers use their default configurations from the Aeon toolkit. ConCar (labeled as poi due to weirdness in my code) had the best performance on several datasets, despite low kernel count. ROCKET ranks look deflated by inclusion of multiple forms of ROCKET.
 
-Of course, this comparison isn't entirely fair. Let's try scaling up the number of kernels, but switching from MSM distance to euclidean distance. If the elasticity of the measure mattters, more than the number of kernels, we should expect the relative performance of the ConCar transformation to decrease.
+Of course, this comparison isn't entirely fair. Let's try scaling up the number of kernels, but switching from MSM distance to euclidean distance. If the elasticity of the measure mattters more than the number of kernels, we should expect the relative performance of the ConCar transformation to decrease.
 
 <img width="1300" height="600" alt="Figure_1" src="https://github.com/user-attachments/assets/2a23807e-d363-483b-aa4c-083c9d2c1aeb" />
 Euclidean distances, 10000 convolutional kernels. It is clearly better than nn, not much else.
