@@ -57,6 +57,15 @@ To further our apples to apples comparison, let's limit all the ROCKET methods t
 
 So ConCar is a little worse than the default featureset, but still performs the best on several datasets if all algorithms have to use the same number of kernels. This also makes it clear that Ridge Regression definitely outperforms Random Forests for ConCar, which was unknown because of its hybrid distance and convolutional structure.
 
+For the next test, let's put a 10000 kernel version of ConCar up against the top (non-deep) performers, since I don't have a GPU on hand for benchmarking. We will also need to switch from RidgeCV to SGD for larger datasets in this case.
+
+<img width="1300" height="600" alt="comparison_unfinished" src="https://github.com/user-attachments/assets/f4a19b62-72ca-4046-b2d5-5e41ef361525" />
+
+TEST UNFINISHED
+
+Concar does something on a few datasets, but is outperformed by the other methods. So it has a place, but is not dominant. Not surprising. 
+[Generate Head to Head pictures for here]
+
 Complexity Analysis:
 
 The current transform creates log_b(n) points of interest for each kernel, where b is a constant and n is the number of datapoints. Set the kernel count to be a constant k and the dimensionality of the dataset to be a constant m and the length of each series to be l. Then, the number of distance calculations perform the transform is:
