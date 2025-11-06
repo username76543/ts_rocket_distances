@@ -51,15 +51,17 @@ Of course, this comparison isn't entirely fair. Let's try scaling up the number 
 
 Euclidean distances, 10000 convolutional kernels. It is clearly better than nn, not much else.
 
-To further our apples to apples comparison, let's limit all the ROCKET methods to 840 kernels (since MiniRocket requires a multiple of 84) and see how they compare. We will have to exclude HYDRA and QUANT from this test, since they don't have as easy of a way to limit the algorithms.
+To further our apples to apples comparison, let's limit all the ROCKET methods to 840 kernels (since MiniRocket requires a multiple of 84) and see how they compare. Ridge Regression has consistently outperformed Random Forests for Concar, so I'll drop that for its slow training time. Finally, the main advantage to using Concar (if any) should be that it ensembles with Rocket under RidgeCV ala HYDRAMR. So I'm going to test concating the features from all three as well.
 
-<img width="1300" height="600" alt="Figure_1" src="https://github.com/user-attachments/assets/dfa29877-fefb-4732-ac75-b03548ccf79e" />
+<img width="1300" height="500" alt="cd_and_best" src="https://github.com/user-attachments/assets/36845516-8f03-48d6-906f-172b2bab9af6" />
 
-So ConCar is a little worse than the default featureset, but still performs the best on several datasets if all algorithms have to use the same number of kernels. This also makes it clear that Ridge Regression definitely outperforms Random Forests for ConCar, which was unknown because of its hybrid distance and convolutional structure.
+Concar is about the same as ROCKET or HYDRA, but it ensembles well. So well that the triple ensemble of Concar, Hydra, and MultiROCKET outperforms everything else by a lot. Unfortunately, due to a bug in my code, I recorded the accuracies twice and did not record the times for this test. But Concar is much slower, ~ > 10x slower than ROCKET or HYDRA.
 
-For the next test, let's put a 10000 kernel version of ConCar up against the top (non-deep) performers, since I don't have a GPU on hand for benchmarking. We will also need to switch from RidgeCV to SGD for larger datasets in this case.
+Maybe the distances can be changed to be more efficient. Switching to a 512 kernel version of ConCar, I can benchmark the algorithm using most of the distances in the Aeon Toolkit. I cut LCSS, it resulted in a lot of inf and division by zero errors, since the ROCKET convolutional kernels regularly map series so far apart that they have no overlap.
 
-<img width="1300" height="600" alt="comparison_unfinished" src="https://github.com/user-attachments/assets/f4a19b62-72ca-4046-b2d5-5e41ef361525" />
+<img width="1300" height="500" alt="distances_cd" src="https://github.com/user-attachments/assets/ab3bad46-79f5-4a22-b576-c2329efd878e" />
+
+
 
 TEST UNFINISHED
 
