@@ -1,6 +1,6 @@
 """ConCar transformer."""
 
-__maintainer__ = ["NHarner"]
+__maintainer__ = ["username"]
 __all__ = ["ConCar"]
 
 import numpy as np
@@ -11,7 +11,7 @@ from aeon.utils.validation import check_n_jobs
 
 #msm distance is numba compatible, msm_pairwise_distance is not.
 #This increases runtime for initial POI selection
-from aeon.distances import msm_distance
+from aeon.distances import msm_distance, euclidean_distance, adtw_distance, dtw_distance, erp_distance, lcss_distance, twe_distance, wdtw_distance
 
 class ConCarTransformer(BaseCollectionTransformer):
     """Convolutional Cartography: Combining ROCKET and Distance Based Learning.
@@ -39,8 +39,8 @@ class ConCarTransformer(BaseCollectionTransformer):
     #Preliminary Results
     
     From small scale testing, random convolved point distances are good pooling features  
-    for ROCKET, but require substantially more computation. Accuracy is better than NN 
-    or EE, but worse than MiniRocket, with less runtime that EE, but more than ROCKET. 
+    for ROCKET, but require substantially more computation. Accuracy is better than NN , 
+    but worse than MiniRocket, with less runtime that EE, but more than ROCKET. 
     
     #Currently in Alpha, plan to improve and remain compatible with Aeon toolkit.
     
@@ -65,9 +65,8 @@ class ConCarTransformer(BaseCollectionTransformer):
        processors.
     random_state : None or int, optional, default = None
         Seed for random number generation.
-    poi_per_kernel : string, default=log_log_2
-        Default chooses ceil(log2(log2(|X|))), where X is the test dataset.
-        options include: log_2, log_log_2
+    poi_per_kernel : float, default=4.0
+        Default chooses ceil(log_poi_per_kernel(|X|)), where X is the test dataset.
     window_frac: float, default = .2
         Bounding matrix window size for elastic distance measures
         
@@ -121,8 +120,9 @@ class ConCarTransformer(BaseCollectionTransformer):
         normalise=True,
         n_jobs=1,
         random_state=None,
-        poi_per_kernel = 'log_log_2',
-        window_frac = .2
+        poi_per_kernel = 4.0,
+        window_frac = .2,
+        dist_name = 'msm'
     ):
         self.n_kernels = n_kernels
         self.normalise = normalise
@@ -130,6 +130,7 @@ class ConCarTransformer(BaseCollectionTransformer):
         self.random_state = random_state
         self.poi_per_kernel = poi_per_kernel
         self.window_frac = window_frac
+        self.dist_name = dist_name
         super().__init__()
 
     def _fit(self, X, y=None):
@@ -161,7 +162,6 @@ class ConCarTransformer(BaseCollectionTransformer):
         self.kernels = _generate_kernels(
             self.fit_min_length_, self.n_kernels, n_channels, self._random_state
         )
-        self.dist_name = "msm"
         self.kernel_points = _get_points_of_interest(X, self.kernels, self.poi_per_kernel, self.dist_name, self.window_frac)
         return self
 
@@ -313,7 +313,6 @@ def _apply_kernels_poi(X, kernels, pois, distance_func, window_frac):
                 
 
             else:
-                #Implement Multivariate here
                 Nothing=None
                 reshaped_weights = weights[a1:b1].reshape(n_channel_indices[j], lengths[j])
                 new_features = _apply_poi_kernel_multivariate(
@@ -335,8 +334,6 @@ def _apply_kernels_poi(X, kernels, pois, distance_func, window_frac):
             a1 = b1
             a2 = b2
             a3 = b3
-    #print("after prange")
-    #print(return_features)
     return return_features.astype(np.float32)
 
 @njit(
@@ -344,7 +341,7 @@ def _apply_kernels_poi(X, kernels, pois, distance_func, window_frac):
     fastmath=True,
     cache=True,
 )
-def _get_points_of_interest(X, kernels, poi_per_kernel="log_log_2", pw_dist_name='msm', window_frac=.2):
+def _get_points_of_interest(X, kernels, poi_per_kernel=4.0, pw_dist_name='msm', window_frac=.2):
     (
         weights,
         lengths,
@@ -355,15 +352,9 @@ def _get_points_of_interest(X, kernels, poi_per_kernel="log_log_2", pw_dist_name
         channel_indices,
     ) = kernels
     n_cases = len(X)
-    if poi_per_kernel == "log_log_2":
-        n_cases = int(np.ceil(np.log2(np.log2(n_cases))))
-    elif poi_per_kernel == "log_2":
-        n_cases = int(np.ceil(np.log2(n_cases)))
-    else:
-        n_cases = 1
+    n_cases = 1+int(np.log(n_cases)/np.log(poi_per_kernel))
     #n_cases = int(np.ceil(np.log2(n_cases)))
     search_buffer = n_cases
-    #print("n_cases", n_cases)
     n_channels, n_timepoints = X[0].shape
     n_kernels = len(lengths)
     #print('n_kernels', n_kernels)
@@ -382,7 +373,7 @@ def _get_points_of_interest(X, kernels, poi_per_kernel="log_log_2", pw_dist_name
         channel_ends[i] = a2_i
         
     return_points = np.zeros((n_kernels, n_cases, n_channels, n_timepoints), dtype=np.float32)
-    for i in prange(n_kernels):
+    for i in range(n_kernels):
         a1 = 0  # for weights
         a2 = 0  # for channel_indices
         a3 = 0  # for features
@@ -394,7 +385,7 @@ def _get_points_of_interest(X, kernels, poi_per_kernel="log_log_2", pw_dist_name
         initial_candidates = 0
         for j in range(len(candidate_indices)):
             #print("candidate example", X[candidate_indices[j]])
-            print("candidate_points", candidate_points.shape)
+            #print("candidate_points", candidate_points.shape)
             if n_channel_indices[i] == 1:
                 eval_candidate_buffer = np.zeros((n_channels, n_timepoints), dtype=np.float32)
                 convolved_candidate = np.zeros(len(X[candidate_indices[j]][0]), dtype=np.float32)
@@ -423,14 +414,77 @@ def _get_points_of_interest(X, kernels, poi_per_kernel="log_log_2", pw_dist_name
                                         current_distances[row_index][column_index] = new_dist
                                         current_distances[column_index][row_index] = new_dist
                                 #print(row_index, column_index, current_distances)
+                        elif pw_dist_name == 'euclidean':
+                            #because of this, I have to individually compute the initial pairwise matrix
+                            for row_index in range(0, len(candidate_points)):
+                                for column_index in range(row_index+1, len(candidate_points)):
+                                    if row_index == column_index:
+                                        continue
+                                    else:
+                                        new_dist = euclidean_distance(candidate_points[row_index], candidate_points[column_index])
+                                        current_distances[row_index][column_index] = new_dist
+                                        current_distances[column_index][row_index] = new_dist
+                                #print(row_index, column_index, current_distances)
+                        elif pw_dist_name == 'adtw':
+                            for row_index in range(0, len(candidate_points)):
+                                for column_index in range(row_index+1, len(candidate_points)):
+                                    if row_index == column_index:
+                                        continue
+                                    else:
+                                        new_dist = adtw_distance(candidate_points[row_index], candidate_points[column_index], window=window_frac)
+                                        current_distances[row_index][column_index] = new_dist
+                                        current_distances[column_index][row_index] = new_dist
+                        elif pw_dist_name == 'dtw':
+                            for row_index in range(0, len(candidate_points)):
+                                for column_index in range(row_index+1, len(candidate_points)):
+                                    if row_index == column_index:
+                                        continue
+                                    else:
+                                        new_dist = dtw_distance(candidate_points[row_index], candidate_points[column_index], window=window_frac)
+                                        current_distances[row_index][column_index] = new_dist
+                                        current_distances[column_index][row_index] = new_dist
+                        elif pw_dist_name == 'wdtw':
+                            for row_index in range(0, len(candidate_points)):
+                                for column_index in range(row_index+1, len(candidate_points)):
+                                    if row_index == column_index:
+                                        continue
+                                    else:
+                                        new_dist = wdtw_distance(candidate_points[row_index], candidate_points[column_index], window=window_frac)
+                                        current_distances[row_index][column_index] = new_dist
+                                        current_distances[column_index][row_index] = new_dist
+                        elif pw_dist_name == 'erp':
+                            for row_index in range(0, len(candidate_points)):
+                                for column_index in range(row_index+1, len(candidate_points)):
+                                    if row_index == column_index:
+                                        continue
+                                    else:
+                                        new_dist = erp_distance(candidate_points[row_index], candidate_points[column_index], window=window_frac)
+                                        current_distances[row_index][column_index] = new_dist
+                                        current_distances[column_index][row_index] = new_dist
+                        elif pw_dist_name == 'lcss':
+                            for row_index in range(0, len(candidate_points)):
+                                for column_index in range(row_index+1, len(candidate_points)):
+                                    if row_index == column_index:
+                                        continue
+                                    else:
+                                        new_dist = lcss_distance(candidate_points[row_index], candidate_points[column_index], window=window_frac)
+                                        current_distances[row_index][column_index] = new_dist
+                                        current_distances[column_index][row_index] = new_dist
+                        elif pw_dist_name == 'twe':
+                            for row_index in range(0, len(candidate_points)):
+                                for column_index in range(row_index+1, len(candidate_points)):
+                                    if row_index == column_index:
+                                        continue
+                                    else:
+                                        new_dist = twe_distance(candidate_points[row_index], candidate_points[column_index], window=window_frac)
+                                        current_distances[row_index][column_index] = new_dist
+                                        current_distances[column_index][row_index] = new_dist
                         else:
                             nothing = None #raise ValueError("Invalid dist func provided.")
                 elif initial_candidates == n_cases:
                     eval_candidate_buffer[0] = convolved_candidate
                     candidate_points, current_distances = accept_or_reject_candidate(candidate_points, eval_candidate_buffer, current_distances, pw_dist_name, window_frac)
             else:
-                #print("multivariate_series", X[candidate_indices[j]])
-                #print(X[candidate_indices[j]].shape)
                 reshaped_weights = weights[weight_starts[i]:weight_ends[i]].reshape(n_channel_indices[i], lengths[i])
                 convolved_candidate = np.zeros((X[candidate_indices[j]].shape[0], X[candidate_indices[j]].shape[1]), dtype=np.float32)
                 convolved_candidate = multivariate_apply_kernel_return_convolved(
@@ -444,7 +498,6 @@ def _get_points_of_interest(X, kernels, poi_per_kernel="log_log_2", pw_dist_name
                 channel_indices[channel_starts[i]:channel_ends[i]],
                 convolved_candidate
                 )
-                #print(convolved_candidate)
                 if initial_candidates < n_cases:
                     candidate_points[initial_candidates] = convolved_candidate
                     initial_candidates += 1
@@ -460,7 +513,69 @@ def _get_points_of_interest(X, kernels, poi_per_kernel="log_log_2", pw_dist_name
                                         new_dist = msm_distance(candidate_points[row_index], candidate_points[column_index], window=window_frac)
                                         current_distances[row_index][column_index] = new_dist
                                         current_distances[column_index][row_index] = new_dist
-                                #print(row_index, column_index, current_distances)
+                        elif pw_dist_name == 'euclidean':
+                            for row_index in range(0, len(candidate_points)):
+                                for column_index in range(row_index+1, len(candidate_points)):
+                                    if row_index == column_index:
+                                        continue
+                                    else:
+                                        new_dist = euclidean_distance(candidate_points[row_index], candidate_points[column_index])
+                                        current_distances[row_index][column_index] = new_dist
+                                        current_distances[column_index][row_index] = new_dist
+                        elif pw_dist_name == 'adtw':
+                            for row_index in range(0, len(candidate_points)):
+                                for column_index in range(row_index+1, len(candidate_points)):
+                                    if row_index == column_index:
+                                        continue
+                                    else:
+                                        new_dist = adtw_distance(candidate_points[row_index], candidate_points[column_index],  window=window_frac)
+                                        current_distances[row_index][column_index] = new_dist
+                                        current_distances[column_index][row_index] = new_dist
+                        elif pw_dist_name == 'dtw':
+                            for row_index in range(0, len(candidate_points)):
+                                for column_index in range(row_index+1, len(candidate_points)):
+                                    if row_index == column_index:
+                                        continue
+                                    else:
+                                        new_dist = dtw_distance(candidate_points[row_index], candidate_points[column_index],  window=window_frac)
+                                        current_distances[row_index][column_index] = new_dist
+                                        current_distances[column_index][row_index] = new_dist
+                        elif pw_dist_name == 'erp':
+                            for row_index in range(0, len(candidate_points)):
+                                for column_index in range(row_index+1, len(candidate_points)):
+                                    if row_index == column_index:
+                                        continue
+                                    else:
+                                        new_dist = erp_distance(candidate_points[row_index], candidate_points[column_index],  window=window_frac)
+                                        current_distances[row_index][column_index] = new_dist
+                                        current_distances[column_index][row_index] = new_dist
+                        elif pw_dist_name == 'lcss':
+                            for row_index in range(0, len(candidate_points)):
+                                for column_index in range(row_index+1, len(candidate_points)):
+                                    if row_index == column_index:
+                                        continue
+                                    else:
+                                        new_dist = lcss_distance(candidate_points[row_index], candidate_points[column_index],  window=window_frac)
+                                        current_distances[row_index][column_index] = new_dist
+                                        current_distances[column_index][row_index] = new_dist
+                        elif pw_dist_name == 'twe':
+                            for row_index in range(0, len(candidate_points)):
+                                for column_index in range(row_index+1, len(candidate_points)):
+                                    if row_index == column_index:
+                                        continue
+                                    else:
+                                        new_dist = twe_distance(candidate_points[row_index], candidate_points[column_index],  window=window_frac)
+                                        current_distances[row_index][column_index] = new_dist
+                                        current_distances[column_index][row_index] = new_dist
+                        elif pw_dist_name == 'wdtw':
+                            for row_index in range(0, len(candidate_points)):
+                                for column_index in range(row_index+1, len(candidate_points)):
+                                    if row_index == column_index:
+                                        continue
+                                    else:
+                                        new_dist = wdtw_distance(candidate_points[row_index], candidate_points[column_index],  window=window_frac)
+                                        current_distances[row_index][column_index] = new_dist
+                                        current_distances[column_index][row_index] = new_dist
                         else:
                             nothing = None #raise ValueError("Invalid dist func provided.")
                 elif initial_candidates == n_cases:
@@ -468,7 +583,6 @@ def _get_points_of_interest(X, kernels, poi_per_kernel="log_log_2", pw_dist_name
                     candidate_points, current_distances = accept_or_reject_candidate(candidate_points, convolved_candidate, current_distances, pw_dist_name, window_frac)
         return_points[i] = candidate_points
     
-    #print(return_points)
     return return_points
     
     
@@ -477,6 +591,7 @@ def _get_points_of_interest(X, kernels, poi_per_kernel="log_log_2", pw_dist_name
 #distant from current points    
 @njit(fastmath=True, cache=True)
 def accept_or_reject_candidate(candidate_points, convolved_candidate, current_distances, my_pw_dist_func, window_frac=.2):
+    #print(current_distances)
     current_distances_scores = score_pois_from_dist_matrix(current_distances)
     #print('scores', current_distances_scores)
     worst_poi = np.argmin(current_distances_scores)
@@ -487,10 +602,28 @@ def accept_or_reject_candidate(candidate_points, convolved_candidate, current_di
             continue
         else:
             if my_pw_dist_func == 'msm':
-                #print(convolved_candidate)
-                #print(candidate_points[poi_index])
                 new_dist = msm_distance(candidate_points[poi_index], convolved_candidate, window=window_frac)
-                #print("new_dist", new_dist)
+                candidate_distances[poi_index] = new_dist
+            elif my_pw_dist_func == 'euclidean':
+                new_dist = euclidean_distance(candidate_points[poi_index], convolved_candidate)
+                candidate_distances[poi_index] = new_dist
+            elif my_pw_dist_func == 'adtw':
+                new_dist = adtw_distance(candidate_points[poi_index], convolved_candidate, window=window_frac)
+                candidate_distances[poi_index] = new_dist
+            elif my_pw_dist_func == 'dtw':
+                new_dist = dtw_distance(candidate_points[poi_index], convolved_candidate, window=window_frac)
+                candidate_distances[poi_index] = new_dist
+            elif my_pw_dist_func == 'erp':
+                new_dist = erp_distance(candidate_points[poi_index], convolved_candidate, window=window_frac)
+                candidate_distances[poi_index] = new_dist
+            elif my_pw_dist_func == 'lcss':
+                new_dist = lcss_distance(candidate_points[poi_index], convolved_candidate, window=window_frac)
+                candidate_distances[poi_index] = new_dist
+            elif my_pw_dist_func == 'twe':
+                new_dist = twe_distance(candidate_points[poi_index], convolved_candidate, window=window_frac)
+                candidate_distances[poi_index] = new_dist
+            elif my_pw_dist_func == 'wdtw':
+                new_dist = wdtw_distance(candidate_points[poi_index], convolved_candidate, window=window_frac)
                 candidate_distances[poi_index] = new_dist
             else:
                 nothing = None
@@ -504,6 +637,7 @@ def accept_or_reject_candidate(candidate_points, convolved_candidate, current_di
             nonuniformity += abs(candidate_distances[poi_index]-mean_dist)
     divergence_from_uniformity_penalty = (1-nonuniformity/candidate_total_distances)
     new_candidate_score = candidate_total_distances*divergence_from_uniformity_penalty
+    #print('new_candidate_score', new_candidate_score)
     if new_candidate_score > current_distances_scores[worst_poi]:
         for row_index in range(0, n_candidates):
             if row_index == worst_poi:
@@ -528,6 +662,7 @@ def score_pois_from_dist_matrix(dist_matrix):
             if row == column_index:
                 continue
             nonuniformity += abs(dist_matrix[row][column_index]-mean_dist)
+        #print('total_dist', total_dist)
         divergence_from_uniformity_penalty = (1-nonuniformity/total_dist)
         #print(row, dist_matrix[row], poi_count, total_dist, mean_dist, nonuniformity, divergence_from_uniformity_penalty)
         #I want points which are far from my current points, but uniformly so)
@@ -577,10 +712,30 @@ def _apply_poi_kernel_univariate(X, weights, length, bias, dilation, padding, po
     #print("return_array", return_array)
     for i in range(0, pois.shape[0]):
         if my_pw_dist_func == 'msm':
-            #print("measure shapes", dist_buffer.shape, pois[i].shape)
             new_dist = msm_distance(dist_buffer, pois[i], window=window_frac)
-            #print("new_dist", new_dist)
             return_array[i] = new_dist
+        elif my_pw_dist_func == 'euclidean':
+            new_dist = euclidean_distance(dist_buffer, pois[i])
+            return_array[i] = new_dist
+        elif my_pw_dist_func == 'adtw':
+            new_dist = adtw_distance(dist_buffer, pois[i], window=window_frac)
+            return_array[i] = new_dist
+        elif my_pw_dist_func == 'dtw':
+            new_dist = dtw_distance(dist_buffer, pois[i], window=window_frac)
+            return_array[i] = new_dist
+        elif my_pw_dist_func == 'erp':
+            new_dist = erp_distance(dist_buffer, pois[i], window=window_frac)
+            return_array[i] = new_dist
+        elif my_pw_dist_func == 'lcss':
+            new_dist = lcss_distance(dist_buffer, pois[i], window=window_frac)
+            return_array[i] = new_dist
+        elif my_pw_dist_func == 'twe':
+            new_dist = twe_distance(dist_buffer, pois[i], window=window_frac)
+            return_array[i] = new_dist
+        elif my_pw_dist_func == 'wdtw':
+            new_dist = wdtw_distance(dist_buffer, pois[i], window=window_frac)
+            return_array[i] = new_dist
+            
         else:
             raise ValueError("Invalid dist func provided.")
 
@@ -595,9 +750,28 @@ def _apply_poi_kernel_multivariate(X, weights, length, bias, dilation, padding, 
     #print("return_array", return_array)
     for i in range(0, pois.shape[0]):
         if my_pw_dist_func == 'msm':
-            #print("measure shapes", dist_buffer.shape, pois[i].shape)
             new_dist = msm_distance(convolved_x, pois[i], window=window_frac)
-            #print("new_dist", new_dist)
+            return_array[i] = new_dist
+        elif my_pw_dist_func == 'euclidean':
+            new_dist = euclidean_distance(convolved_x, pois[i])
+            return_array[i] = new_dist
+        elif my_pw_dist_func == 'adtw':
+            new_dist = adtw_distance(convolved_x, pois[i], window=window_frac)
+            return_array[i] = new_dist
+        elif my_pw_dist_func == 'dtw':
+            new_dist = dtw_distance(convolved_x, pois[i], window=window_frac)
+            return_array[i] = new_dist
+        elif my_pw_dist_func == 'wdtw':
+            new_dist = wdtw_distance(convolved_x, pois[i], window=window_frac)
+            return_array[i] = new_dist
+        elif my_pw_dist_func == 'erp':
+            new_dist = erp_distance(convolved_x, pois[i], window=window_frac)
+            return_array[i] = new_dist
+        elif my_pw_dist_func == 'lcss':
+            new_dist = lcss_distance(convolved_x, pois[i], window=window_frac)
+            return_array[i] = new_dist
+        elif my_pw_dist_func == 'twe':
+            new_dist = twe_distance(convolved_x, pois[i], window=window_frac)
             return_array[i] = new_dist
         else:
             raise ValueError("Invalid dist func provided.")
