@@ -61,12 +61,9 @@ Maybe the distances can be changed to be more efficient. Switching to a 512 kern
 
 <img width="1300" height="500" alt="distances_cd" src="https://github.com/user-attachments/assets/ab3bad46-79f5-4a22-b576-c2329efd878e" />
 
+The best performer is also the slowest. It appears that the edit distance based measures do better than the euclidean distance inspired measures. Euclidean distances, included as a control non static distance, is by far the worst. So elastic measures do something, but they are inefficient.
 
 
-TEST UNFINISHED
-
-Concar does something on a few datasets, but is outperformed by the other methods. So it has a place, but is not dominant. Not surprising. 
-[Generate Head to Head pictures for here]
 
 Complexity Analysis:
 
