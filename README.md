@@ -61,7 +61,7 @@ Maybe the distances can be changed to be more efficient. Switching to a 512 kern
 
 <img width="1300" height="500" alt="distances_cd" src="https://github.com/user-attachments/assets/ab3bad46-79f5-4a22-b576-c2329efd878e" />
 
-The best performer is also the slowest. It appears that the edit distance based measures do better than the euclidean distance inspired measures. Euclidean distances, included as a control non static distance, is by far the worst. So elastic measures do something, but they are inefficient.
+The best performer is also the slowest. It appears that the edit distance based measures do better than the euclidean distance inspired measures. Euclidean distances, included as a control non static distance, is the worst, but not by a significant amount. So elastic measures do something, but they are inefficient.
 
 <img width="1300" height="500" alt="times_cd" src="https://github.com/user-attachments/assets/c6467bc8-1817-4196-b88d-87b02515088b" />
 
