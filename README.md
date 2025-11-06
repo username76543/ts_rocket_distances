@@ -35,11 +35,11 @@ Two Observations:
 
 These observations are the motivation behind the Convolutional Cartography Transform (ConCar). You do random convolutions like ROCKET, while hoping that your convolution cleanly seperates the classes of time series. For each convolution, you select a subset of your testing points as "points of interest". If your convolution produced well seperated neighborhoods of time series, points that are of that class will be near your "points of interest" and points that are not of that class will be far. Then you measure the distance of all of the testing points from your points of interest.
 
-Most of the convolutions are not helpful, but if you use an algorithm that performs feature selection such as Ridge Regression or Random Forests, the few convolutions which did seperate your classes will have higher weight. You can now produce a more useful set of features for classification.
+This is essentially the shotgun approach to NCA, which is computationally expensive with elastic distance measures. You won't make a good convolution most of the time, so you just make more of them and hope it works out. Using an algorithm that performs feature selection such as Ridge Regression or Random Forests is essential. If I had more compuational resources, I would have tested on a deep approach too, but those tend to be more sensitive to garbage features. The few convolutions which work are selected and used to produce an actually useful classifier/regressor.
 
 Relative Performance Evaluation
 
-Does this work? Empirically, it sometimes improves on ROCKET with 1/20th of the kernels, but the distance calculations make it much slower. It is almost always better than other distance based approaches. It is worse than MiniRocket, MultiRocket, HYDRA and QUANT, but again, 1/20th of the kernel count. Adding more kernels should improve performance at the cost of linearly increasing time. I highly doubt I have saturated the kernel space and I still need to switch from the ROCKET kernels to MiniRocket's kernels.
+Does this work? Empirically, it sometimes improves on ROCKET with 1/20th of the kernels, but the distance calculations make it much slower. It is worse than MiniRocket, MultiRocket, HYDRA and QUANT but not by much and with 1/20th of the kernel count. Adding more kernels should improve performance at the cost of linearly increasing time. I highly doubt I have saturated the kernel space and you may be able to get more performance by switching from ROCKET kernels to MiniROCKET kernels.
 
 <img width="1300" height="600" alt="Figure_1" src="https://github.com/user-attachments/assets/01d3c4a6-c28a-4ef9-b97a-b152fadcc922" />
 
@@ -55,7 +55,7 @@ To further our apples to apples comparison, let's limit all the ROCKET methods t
 
 <img width="1300" height="500" alt="cd_and_best" src="https://github.com/user-attachments/assets/36845516-8f03-48d6-906f-172b2bab9af6" />
 
-Concar is about the same as ROCKET or HYDRA, but it ensembles well. So well that the triple ensemble of Concar, Hydra, and MultiROCKET outperforms everything else by a lot. Unfortunately, due to a bug in my code, I recorded the accuracies twice and did not record the times for this test. But Concar is much slower, ~ > 10x slower than ROCKET or HYDRA.
+Concar is about the same as ROCKET or HYDRA, but it ensembles well. So well that the triple ensemble of Concar, HYDRA, and ROCKET outperforms everything else by a lot. Unfortunately, due to a bug in my code, I recorded the accuracies twice and did not record the times for this test. But Concar is much slower, ~ 10x slower than ROCKET or HYDRA.
 
 Maybe the distances can be changed to be more efficient. Switching to a 512 kernel version of ConCar, I can benchmark the algorithm using most of the distances in the Aeon Toolkit. I cut LCSS, it resulted in a lot of inf and division by zero errors, since the ROCKET convolutional kernels regularly map series so far apart that they have no overlap.
 
@@ -65,14 +65,13 @@ The best performer is also the slowest. It appears that the edit distance based 
 
 <img width="1300" height="500" alt="times_cd" src="https://github.com/user-attachments/assets/c6467bc8-1817-4196-b88d-87b02515088b" />
 
-
 Complexity Analysis:
 
-The current transform creates log_b(n) points of interest for each kernel, where b is a constant and n is the number of datapoints. Set the kernel count to be a constant k and the dimensionality of the dataset to be a constant m and the length of each series to be l. Then, the number of distance calculations perform the transform is:
+The current transform creates log_b(n) points of interest for each kernel, where b is a constant and n is the number of datapoints. Set the kernel count to be a constant k and the dimensionality of the dataset to be a constant m and the length of each series to be l. Then, the number of distance calculations to perform the transform is:
 
 |distance_calculations| ~= k·n·log_b(n)
 
-where dist is a distance function with running time proportional to m and l.
+Where the distance calculation running time is proportional to m and l.
 
 Of course, this is modified by a large constant factor determined by how long the distance calculations take. Elastic distances have a runtime on O(m(l)^2) with an unconstrained window. I have gotten good results setting the window to be equal to the sqrt(l), which convienently makes them linear with O(ml).
 
@@ -84,7 +83,7 @@ which if b > 2 is better than the order as the Proximity Forest's complexity
 
 O(n·log_2(n)·m·l·r·c) 
 
-for an sqrt(l) windowed elastic distances with c as the number of classes and r candidate splits. The remaining time complexity would be dominated by linear regression or creating a forest on k*n·log_b(n) features.
+for an sqrt(l) windowed elastic distances with c as the number of classes and r candidate splits. The remaining time complexity would be dominated by creating a model, such as linear regression, a forest, or a net on k*n·log_b(n) features.
 
 Some Observations:
 
